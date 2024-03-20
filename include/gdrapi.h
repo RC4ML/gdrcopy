@@ -63,6 +63,11 @@ extern "C" {
 struct gdr;
 typedef struct gdr *gdr_t;
 
+typedef struct {
+	uint64_t page_entries;
+	uint64_t *pages;
+} gpu_tlb_t;
+
 // Initialize the library, e.g. by opening a connection to the kernel-mode
 // driver. Returns an handle to the library state object.
 gdr_t gdr_open(void);
@@ -78,7 +83,7 @@ typedef struct gdr_mh_s {
 
 // Create a peer-to-peer mapping of the device memory buffer, returning an opaque handle.
 // Note that at this point the mapping is still not accessible to user-space.
-int gdr_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token, uint32_t va_space, gdr_mh_t *handle);
+int gdr_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token, uint32_t va_space, gdr_mh_t *handle, gpu_tlb_t *m_page_table);
 
 // Destroys the peer-to-peer mapping and frees the handle.
 //

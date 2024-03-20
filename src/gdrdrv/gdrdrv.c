@@ -687,7 +687,7 @@ static inline int gdr_generate_mr_handle(gdr_info_t *info, gdr_mr_t *mr)
 
 //-----------------------------------------------------------------------------
 
-static int __gdrdrv_pin_buffer(gdr_info_t *info, u64 addr, u64 size, u64 p2p_token, u32 va_space, gdr_hnd_t *p_handle)
+static int __gdrdrv_pin_buffer(gdr_info_t *info, u64 addr, u64 size, u64 p2p_token, u32 va_space, gdr_hnd_t *p_handle, u64 *num_entries, u64 *params_page_table)
 {
     int ret = 0;
     struct nvidia_p2p_page_table *page_table = NULL;
@@ -811,6 +811,11 @@ static int __gdrdrv_pin_buffer(gdr_info_t *info, u64 addr, u64 size, u64 p2p_tok
         for (i=0; i<MIN(20,page_table->entries); ++i) {
             gdr_dbg("page[%d]=0x%016llx%s\n", i, page_table->pages[i]->physical_address, (i>19)?"and counting":"");
         }
+
+        *num_entries = page_table->entries;
+		for (i=0; i<page_table->entries; ++i) {//to be fixed
+			params_page_table[i] = page_table->pages[i]->physical_address;
+        }
     }
 
     // here a typical driver would use the page_table to fill in some HW
@@ -887,6 +892,9 @@ static int gdrdrv_pin_buffer(gdr_info_t *info, void __user *_params)
     int has_handle = 0;
     gdr_hnd_t handle;
 
+    __u64 *pt;
+    pt = (__u64*)vmalloc(655360*sizeof(__u64));
+
     if (copy_from_user(&params, _params, sizeof(params))) {
         gdr_err("copy_from_user failed on user pointer 0x%px\n", _params);
         ret = -EFAULT;
@@ -899,13 +907,17 @@ static int gdrdrv_pin_buffer(gdr_info_t *info, void __user *_params)
         goto out;
     }
 
-    ret = __gdrdrv_pin_buffer(info, params.addr, params.size, params.p2p_token, params.va_space, &handle);
+    ret = __gdrdrv_pin_buffer(info, params.addr, params.size, params.p2p_token, params.va_space, &handle, &params.table_entries, pt);
     if (ret)
         goto out;
 
     has_handle = 1;
     params.handle = handle;
 
+    if (copy_to_user((void __user *)(params.pt), pt, sizeof(__u64)*params.table_entries)) {
+        gdr_err("copy_to_user failed on user pointer 0x%px\n", params.pt);
+        ret = -EFAULT;
+    }
     if (copy_to_user(_params, &params, sizeof(params))) {
         gdr_err("copy_to_user failed on user pointer 0x%px\n", _params);
         ret = -EFAULT;
@@ -913,6 +925,7 @@ static int gdrdrv_pin_buffer(gdr_info_t *info, void __user *_params)
 
 
 out:
+    vfree(pt);
     if (ret) {
         if (has_handle)
             __gdrdrv_unpin_buffer(info, handle);

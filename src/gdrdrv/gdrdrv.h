@@ -66,6 +66,8 @@ struct GDRDRV_IOC_PIN_BUFFER_PARAMS
     __u32 va_space;
     // out
     gdr_hnd_t handle;
+    __u64 table_entries;
+	__u64 * pt;
 };
 
 #define GDRDRV_IOC_PIN_BUFFER _IOWR(GDRDRV_IOCTL, 1, struct GDRDRV_IOC_PIN_BUFFER_PARAMS)
