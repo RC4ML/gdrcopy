@@ -217,7 +217,56 @@ int gdr_close(gdr_t g)
     return ret;
 }
 
-int gdr_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token, uint32_t va_space, gdr_mh_t *handle, gpu_tlb_t *m_page_table)
+int gdr_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token, uint32_t va_space, gdr_mh_t *handle)
+{
+    int ret = 0;
+    int retcode;
+    size_t requested_size = 0;
+
+    if (!handle) {
+        return EINVAL;
+    }
+
+    gdr_memh_t *mh = calloc(1, sizeof(gdr_memh_t));
+    if (!mh) {
+        return ENOMEM;
+    }
+
+    requested_size = round_up_size(size, GPU_PAGE_SIZE);
+    struct GDRDRV_IOC_PIN_BUFFER_PARAMS params;
+    params.addr = addr;
+    params.size = requested_size;
+    params.p2p_token = p2p_token;
+    params.va_space = va_space;
+    params.handle = 0;
+
+    // params.pt=(__u64*)malloc(2 * 655360 * sizeof(__u64)); //80G pages
+	// __u64* tmp = params.pt;
+    params.pt = NULL;
+    retcode = ioctl(g->fd, GDRDRV_IOC_PIN_BUFFER, &params);
+    // params.pt = tmp;
+	//printf("pages_entrys in api level:%lld\n",params.table_entries);
+	// m_page_table->page_entries = params.table_entries;
+	
+	// for(int i=0;i<params.table_entries;i++){
+	// 	long t = 0;
+	// 	m_page_table->pages[i] = params.pt[i];
+	// }
+    // free(params.pt);
+    if (0 != retcode) {
+        ret = errno;
+        gdr_err("ioctl error (errno=%d)\n", ret);
+        free(mh);
+        goto err;
+    }
+    mh->handle = params.handle;
+    LIST_INSERT_HEAD(&g->memhs, mh, entries);
+    *handle = from_memh(mh);
+ err:
+    return ret;
+}
+
+int rc4ml_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token, uint32_t va_space, gdr_mh_t *handle, gpu_tlb_t *m_page_table)
 {
     int ret = 0;
     int retcode;
@@ -241,9 +290,9 @@ int gdr_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token,
     params.handle = 0;
 
     params.pt=(__u64*)malloc(2 * 655360 * sizeof(__u64)); //80G pages
-	__u64* tmp = params.pt;
+	// __u64* tmp = params.pt;
     retcode = ioctl(g->fd, GDRDRV_IOC_PIN_BUFFER, &params);
-    params.pt = tmp;
+    // params.pt = tmp;
 	//printf("pages_entrys in api level:%lld\n",params.table_entries);
 	m_page_table->page_entries = params.table_entries;
 	

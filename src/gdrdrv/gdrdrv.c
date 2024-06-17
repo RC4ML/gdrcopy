@@ -812,9 +812,11 @@ static int __gdrdrv_pin_buffer(gdr_info_t *info, u64 addr, u64 size, u64 p2p_tok
             gdr_dbg("page[%d]=0x%016llx%s\n", i, page_table->pages[i]->physical_address, (i>19)?"and counting":"");
         }
 
-        *num_entries = page_table->entries;
-		for (i=0; i<page_table->entries; ++i) {//to be fixed
-			params_page_table[i] = page_table->pages[i]->physical_address;
+        if(params_page_table != NULL) {
+            *num_entries = page_table->entries;
+            for (i=0; i<page_table->entries; ++i) {
+                params_page_table[i] = page_table->pages[i]->physical_address;
+            }
         }
     }
 
@@ -892,13 +894,16 @@ static int gdrdrv_pin_buffer(gdr_info_t *info, void __user *_params)
     int has_handle = 0;
     gdr_hnd_t handle;
 
-    __u64 *pt;
-    pt = (__u64*)vmalloc(655360*sizeof(__u64));
+    __u64 *pt = NULL;
 
     if (copy_from_user(&params, _params, sizeof(params))) {
         gdr_err("copy_from_user failed on user pointer 0x%px\n", _params);
         ret = -EFAULT;
         goto out;
+    }
+
+    if(params.pt != NULL) {
+        pt = (__u64*)vmalloc(2 * 655360 * sizeof(__u64)); //80G pages
     }
 
     if (!params.addr) {
@@ -914,9 +919,11 @@ static int gdrdrv_pin_buffer(gdr_info_t *info, void __user *_params)
     has_handle = 1;
     params.handle = handle;
 
-    if (copy_to_user((void __user *)(params.pt), pt, sizeof(__u64)*params.table_entries)) {
-        gdr_err("copy_to_user failed on user pointer 0x%px\n", params.pt);
-        ret = -EFAULT;
+    if(params.pt != NULL) {
+        if (copy_to_user((void __user *)(params.pt), pt, sizeof(__u64)*params.table_entries)) {
+            gdr_err("copy_to_user failed on user pointer 0x%px\n", params.pt);
+            ret = -EFAULT;
+        }
     }
     if (copy_to_user(_params, &params, sizeof(params))) {
         gdr_err("copy_to_user failed on user pointer 0x%px\n", _params);
@@ -925,7 +932,9 @@ static int gdrdrv_pin_buffer(gdr_info_t *info, void __user *_params)
 
 
 out:
-    vfree(pt);
+    if(pt) {
+        vfree(pt);
+    }
     if (ret) {
         if (has_handle)
             __gdrdrv_unpin_buffer(info, handle);

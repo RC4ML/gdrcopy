@@ -83,7 +83,9 @@ typedef struct gdr_mh_s {
 
 // Create a peer-to-peer mapping of the device memory buffer, returning an opaque handle.
 // Note that at this point the mapping is still not accessible to user-space.
-int gdr_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token, uint32_t va_space, gdr_mh_t *handle, gpu_tlb_t *m_page_table);
+int gdr_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token, uint32_t va_space, gdr_mh_t *handle);
+// overloading function to pass the gpu_tlb
+int rc4ml_pin_buffer(gdr_t g, unsigned long addr, size_t size, uint64_t p2p_token, uint32_t va_space, gdr_mh_t *handle, gpu_tlb_t *m_page_table);
 
 // Destroys the peer-to-peer mapping and frees the handle.
 //
